@@ -13,7 +13,7 @@
 </p>
 
 
-**Hikari is a modern, dynamically-typed programming language built from the ground up.** It features a custom bytecode compiler and a high-performance virtual machine, designed to be instantly familiar to millions of developers by adopting the popular and expressive syntax of JavaScript.
+**Hikari is a modern, dynamically-typed programming language built from the ground up.** It features a custom bytecode compiler and a virtual machine, designed to be instantly familiar to millions of developers by adopting the popular and expressive syntax of JavaScript.
 
 The project is a deep dive into the mechanics of language implementation. It features a complete execution pipeline from source code to final value, including closures, classes, a prototype-based object model, and a full non-blocking, resumable execution model with generators and `async/await`.
 
