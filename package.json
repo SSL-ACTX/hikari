@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "node build.js"
   },
   "keywords": [
     "language",
@@ -24,5 +25,9 @@
     "@babel/parser": "^7.28.0",
     "@babel/traverse": "^7.28.0",
     "chalk": "^5.4.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9",
+    "terser": "^5.31.3"
   }
 }

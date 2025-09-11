@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Hikari VM Playground</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --terminal-bg: #1a1a2e;
+      --editor-bg: #1e1e2d;
+      --disassembly-bg: #171725;
+    }
+    body {
+      background: radial-gradient(at top left, #1a1a2e, #0a0a1a, #1a1a2e);
+      background-attachment: fixed;
+      font-family: 'Inter', sans-serif;
+      color: #e2e8f0;
+    }
+    #editor, #terminal, #disassembly-content, #vm-state-content {
+      font-family: 'Fira Code', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #4f46e5;
+      border-radius: 10px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6366f1;
+    }
+    /* Custom syntax highlighting for disassembly */
+    .diss-addr { color: #9ca3af; }
+    .diss-op   { color: #818cf8; font-weight: 600; }
+    .diss-val  { color: #facc15; }
+    .diss-reg  { color: #34d399; font-style: italic; }
+    .log-line {
+      opacity: 0;
+      transform: translateY(4px);
+      animation: fadeInUp 0.3s ease-out forwards;
+      padding-bottom: 2px;
+    }
+    @keyframes fadeInUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .term-log-info    { color: #94a3b8; }
+    .term-log-success { color: #34d399; font-weight: 600; }
+    .term-log-error   { color: #ef4444; font-weight: 600; }
+    .term-log-warn    { color: #facc15; }
+    .term-log-system  { color: #a78bfa; font-weight: 600; }
+    .term-log-value   { color: #60a5fa; }
+    .vm-state-container {
+      word-break: break-all;
+      padding: 1rem;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+    .vm-state-header {
+      font-weight: 700;
+      color: #a78bfa;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .vm-state-subheader {
+        font-weight: 600;
+        color: #94a3b8;
+        margin-top: 1rem;
+        margin-bottom: 0.25rem;
+        border-top: 1px dashed #3f3f46;
+        padding-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .vm-state-type { color: #818cf8; }
+    .vm-state-key { color: #34d399; }
+    .vm-state-string { color: #facc15; }
+    .vm-state-number, .vm-state-boolean { color: #fb7185; }
+    .vm-state-null, .vm-state-undefined { color: #94a3b8; }
+    .vm-state-meta { color: #6b7280; font-style: italic; }
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <!-- Monaco Editor -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.54.0-dev-20250911/min/vs/loader.js" async></script>
+</head>
+<body class="h-screen flex flex-col antialiased">
+  <!-- Header -->
+  <header class="backdrop-blur-md bg-gray-900/70 border-b border-gray-700 p-4 flex items-center justify-between shadow-xl z-10 relative">
+    <h1 class="text-xl font-bold tracking-tight text-indigo-400 flex items-center gap-3">
+      <svg class="w-6 h-6 text-yellow-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+      Hikari VM Playground
+    </h1>
+    <div class="flex items-center gap-3">
+      <button id="runBtn" class="flex items-center gap-2 px-5 py-2 bg-gradient-to-br from-indigo-600 to-purple-700 hover:from-indigo-500 hover:to-purple-600 rounded-xl text-sm font-semibold transition-all duration-200 ease-in-out transform hover:scale-105 shadow-lg active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900" disabled>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197 2.132A1 1 0 0110 13.82V4.18c0-.814.945-1.294 1.625-.85L14.752 5.832a1 1 0 010 1.704l-3.197 2.132a1 1 0 01-1.625-.85V10c0-.552.448-1 1-1h.001z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span>Run Code</span>
+      </button>
+      <button id="resetBtn" class="flex items-center gap-2 px-5 py-2 bg-gray-700 hover:bg-gray-600 rounded-xl text-sm font-semibold transition-all duration-200 ease-in-out transform hover:scale-105 shadow-lg active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m0 0H15"></path></svg>
+        <span>Reset</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <main class="flex flex-1 overflow-hidden divide-x divide-gray-800/70 relative z-0">
+    <!-- Editor -->
+    <section class="w-1/3 flex flex-col bg-[var(--editor-bg)] shadow-inner">
+      <div class="bg-gray-800/70 px-4 py-3 text-sm text-gray-300 font-mono border-b border-gray-700/60 flex items-center gap-2 font-semibold">
+        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+        Editor
+      </div>
+      <div id="editor" class="flex-1"></div>
+    </section>
+
+    <!-- Terminal -->
+    <section class="w-1/3 flex flex-col bg-[var(--terminal-bg)] shadow-inner">
+      <div class="bg-gray-800/70 px-4 py-3 text-sm text-gray-300 font-mono border-b border-gray-700/60 flex items-center justify-between font-semibold">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9.75 12M9.75 12V7M9.75 12H13.75C14.302 12 14.75 11.552 14.75 11V7C14.75 6.448 14.302 6 13.75 6H9.75C9.198 6 8.75 6.448 8.75 7V17C8.75 17.552 9.198 18 9.75 18H13.75C14.302 18 14.75 17.552 14.75 17V13"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14v3m0 0v3m0-3h3m-3 0h-3M9 21v-7M9 3v7M4 14H2M22 14H20M12 2H8M16 2H12M12 22H8M16 22H12"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6a2 2 0 110 4 2 2 0 010-4z"></path></svg>
+          Terminal
+        </div>
+        <button id="clearTerminalBtn" class="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded-md transition duration-200">
+          Clear
+        </button>
+      </div>
+      <div id="terminal" class="flex-1 overflow-y-auto p-4 text-sm leading-relaxed space-y-1"></div>
+    </section>
+
+    <!-- Disassembly/VM State Panel -->
+    <aside class="w-1/3 flex flex-col bg-[var(--disassembly-bg)] shadow-inner">
+      <div class="bg-gray-800/70 px-4 py-2 text-sm text-gray-300 font-mono border-b border-gray-700/60 flex items-center justify-between font-semibold">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span class="mr-2">Inspect</span>
+          <div class="inline-flex rounded-md shadow-sm -my-1" role="group">
+            <button id="showDisassemblyBtn" class="px-3 py-1 text-xs rounded-l-md transition duration-200 bg-indigo-600 text-white hover:bg-indigo-500">
+              Disassembly
+            </button>
+            <button id="showVmStateBtn" class="px-3 py-1 text-xs rounded-r-md transition duration-200 bg-gray-600 hover:bg-gray-500">
+              VM State
+            </button>
+          </div>
+        </div>
+        <button id="clearInspectBtn" class="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded-md transition duration-200">
+          Clear
+        </button>
+      </div>
+      <div id="disassembly-content" class="flex-1 overflow-y-auto p-4 text-xs leading-relaxed"></div>
+      <div id="vm-state-content" class="flex-1 overflow-y-auto vm-state-container hidden">
+        <div class="vm-state-header">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+            Final VM State
+        </div>
+        <p class="text-gray-400">Run code to see the final VM state here.</p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900/70 border-t border-gray-700 p-3 text-xs text-gray-400 text-center backdrop-blur-md relative z-10">
+    <span class="text-indigo-300">✨ Hikari VM Playground ✨</span> · Crafted with <span class="text-red-400">❤️</span> by <span class="text-pink-400">Seuriin</span> · Type code, run it, watch the magic ⚡
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/gh/SSL-Kazu/Misc_files@refs/heads/main/hikari-compiler.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/SSL-Kazu/Misc_files@refs/heads/main/hikari-disassembler.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/SSL-Kazu/Misc_files@refs/heads/main/hikari-vm.min.js"></script>
+  <script>
+    const termEl = document.getElementById("terminal");
+    const dissContentEl = document.getElementById("disassembly-content");
+    const vmStateContentEl = document.getElementById("vm-state-content");
+
+    const runBtn = document.getElementById("runBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const clearTerminalBtn = document.getElementById("clearTerminalBtn");
+    const clearInspectBtn = document.getElementById("clearInspectBtn");
+
+    const showDisassemblyBtn = document.getElementById("showDisassemblyBtn");
+    const showVmStateBtn = document.getElementById("showVmStateBtn");
+
+    let editor;
+    let lastVmStateData = { stack: [], globals: new Map() };
+
+    // --- Monaco Editor Setup ---
+    require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.54.0-dev-20250911/min/vs" } });
+    require(["vs/editor/editor.main"], function () {
+      editor = monaco.editor.create(document.getElementById("editor"), {
+        value: `// Welcome to Hikari! ✨
+// Write your JavaScript-like code here and see it run.
+
+console.log("Fetching a random joke...");
+
+// Correct two-step process
+const response = await fetch('https://official-joke-api.appspot.com/random_joke');
+const data = await response.json();
+
+console.log(data.setup);
+console.log(data.punchline);
+
+return data.punchline;
+`,
+        language: "javascript",
+        theme: "vs-dark",
+        automaticLayout: true,
+        fontSize: 14,
+        minimap: { enabled: false },
+        wordWrap: "on",
+        scrollBeyondLastLine: false,
+      });
+
+      runBtn.removeAttribute('disabled');
+    });
+
+    // --- Terminal Logging ---
+    function termLog(msg, type = "info") {
+      const line = document.createElement("div");
+      line.className = `log-line term-log-${type} flex items-start gap-2`;
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      let icon = '';
+      switch (type) {
+        case 'success': icon = '<svg class="w-4 h-4 mt-0.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'; break;
+        case 'error': icon = '<svg class="w-4 h-4 mt-0.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'; break;
+        case 'warn': icon = '<svg class="w-4 h-4 mt-0.5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'; break;
+        case 'system': icon = '<svg class="w-4 h-4 mt-0.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'; break;
+        case 'value': icon = '<svg class="w-4 h-4 mt-0.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>'; break;
+        default: icon = '<svg class="w-4 h-4 mt-0.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>'; break;
+      }
+      line.innerHTML = `<span class="text-gray-500 text-xs">[${timestamp}]</span> ${icon} <span>${msg}</span>`;
+      termEl.appendChild(line);
+      termEl.scrollTop = termEl.scrollHeight;
+    }
+
+    // Patch console for terminal output
+    const oldConsole = { log: console.log, error: console.error, warn: console.warn };
+    console.log = (...args) => termLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" "), 'info');
+    console.error = (...args) => termLog("❌ " + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" "), "error");
+    console.warn = (...args) => termLog("⚠️ " + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" "), "warn");
+
+    // --- Disassembly Panel ---
+    function dissLog(msg) {
+      const clean = stripAnsi(msg);
+      const line = document.createElement("div");
+      line.className = "log-line";
+      line.innerHTML = highlightDisassembly(clean);
+      dissContentEl.appendChild(line);
+      dissContentEl.scrollTop = dissContentEl.scrollHeight;
+    }
+    function stripAnsi(str) {
+      return str.replace(/\x1b\[[0-9;]*m/g, "");
+    }
+    function highlightDisassembly(line) {
+      return line
+        .replace(/^(\s*\d+)\s+/, '<span class="diss-addr">$1</span> ')
+        .replace(/\b(OP_[A-Z_]+)\b/g, '<span class="diss-op">$1</span>')
+        .replace(/\b(-?\d+(\.\d+)?)\b/g, '<span class="diss-val">$&</span>')
+        .replace(/'([^']*)'/g, "<span class='diss-reg'>'$1'</span>")
+        .replace(/([A-Z_]+)\s*:/g, '<span class="diss-reg">$1:</span>');
+    }
+
+    function disassembleToPanel(fn) {
+      clearDisassembly();
+      const prevLog = console.log;
+      console.log = (...args) => dissLog(args.join(" "));
+      try {
+        HikariDisassembler.disassembleFunction(fn);
+      } finally {
+        console.log = prevLog;
+      }
+    }
+
+    // --- VM State Panel Logic ---
+    function escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    //  formatVmObjectToHtml function
+    function formatVmObjectToHtml(obj, indentLevel = 0) {
+      const indent = '&nbsp;&nbsp;'.repeat(indentLevel);
+
+      if (obj === null) return `<span class="vm-state-null">${indent}null</span>`;
+      if (typeof obj === 'undefined') return `<span class="vm-state-undefined">${indent}undefined</span>`;
+      if (typeof obj === 'string') return `<span class="vm-state-string">${indent}'${escapeHtml(obj)}'</span>`;
+      if (typeof obj === 'number' || typeof obj === 'boolean') return `<span class="vm-state-number">${indent}${obj.toString()}</span>`;
+
+      // *** FIX: Added this block to handle functions correctly ***
+      if (typeof obj === 'function') {
+        const name = obj.name ? escapeHtml(obj.name) : '<anonymous>';
+        return `<span class="vm-state-meta">${indent}[Function: ${name}]</span>`;
+      }
+
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) return `${indent}[]`;
+        const items = obj.map(item => formatVmObjectToHtml(item, indentLevel + 2)).join(',<br>');
+        return `${indent}[<br>${items}<br>${indent}]`;
+      }
+
+      if (obj instanceof Map) {
+        if (obj.size === 0) return `${indent}<span class="vm-state-type">Map</span>(0) {}`;
+        let entries = [];
+        obj.forEach((value, key) => {
+          entries.push(`${indent}&nbsp;&nbsp;<span class="vm-state-string">'${escapeHtml(String(key))}'</span> => ${formatVmObjectToHtml(value, indentLevel + 2)}`);
+        });
+        return `${indent}<span class="vm-state-type">Map</span>(${obj.size}) {<br>${entries.join(',<br>')}<br>${indent}}`;
+      }
+
+      if (typeof obj === 'object') {
+        let typeName = 'Object';
+        let properties = [];
+
+        // FunctionObject
+        if (obj.hasOwnProperty('bytecode') && obj.hasOwnProperty('constants')) {
+          typeName = 'FunctionObject';
+          if (obj.name) properties.push(`name: <span class="vm-state-string">'${escapeHtml(obj.name)}'</span>`);
+          properties.push(`arity: <span class="vm-state-number">${obj.arity || 0}</span>`);
+          properties.push(`bytecode: <span class="vm-state-meta">[Array]</span>`);
+          properties.push(`constants: <span class="vm-state-meta">[Array]</span>`);
+        }
+        // Closure
+        else if (obj.hasOwnProperty('upvalues') && obj.hasOwnProperty('func')) {
+          typeName = 'Closure';
+          properties.push(`func: <span class="vm-state-type">FunctionObject</span> { name: <span class="vm-state-string">'${escapeHtml(obj.func.name || '<anonymous>')}'</span> }`);
+          properties.push(`upvalues: <span class="vm-state-meta">Array(${obj.upvalues.length})</span>`);
+        }
+        // NativeObject
+        else if (obj.hasOwnProperty('object') && obj.hasOwnProperty('methods')) {
+          typeName = 'NativeObject';
+          if (obj.name) properties.push(`name: <span class="vm-state-string">'${escapeHtml(obj.name)}'</span>`);
+          properties.push(`object: ${formatVmObjectToHtml(obj.object, 0).trim()}`);
+          if (obj.methods && Object.keys(obj.methods).length > 0) properties.push(`methods: <span class="vm-state-meta">[Object]</span>`);
+        }
+        // Upvalue
+        else if (obj.hasOwnProperty('value') && obj.value !== undefined) {
+            typeName = 'Upvalue';
+            properties.push(`value: ${formatVmObjectToHtml(obj.value, 0).trim()}`);
+        }
+        // Generic Object
+        else {
+          const keys = Object.keys(obj);
+          if (keys.length > 0) {
+            properties = keys.map(key => `<span class="vm-state-key">'${escapeHtml(key)}'</span>: ${formatVmObjectToHtml(obj[key], indentLevel + 2)}`);
+          }
+          if (obj.constructor && obj.constructor.name !== 'Object') {
+            typeName = escapeHtml(obj.constructor.name);
+          }
+        }
+
+        if (properties.length === 0) return `${indent}<span class="vm-state-type">${typeName}</span> {}`;
+
+        const propList = properties.map(p => `${indent}&nbsp;&nbsp;${p}`).join(',<br>');
+        return `${indent}<span class="vm-state-type">${typeName}</span> {<br>${propList}<br>${indent}}`;
+      }
+
+      return `<span class="text-gray-400">${indent}??? ${escapeHtml(String(obj))}</span>`;
+    }
+
+    function displayVmState() {
+      vmStateContentEl.innerHTML = `
+        <div class="vm-state-header">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+            Final VM State
+        </div>
+      `;
+
+      if (!lastVmStateData || (lastVmStateData.stack.length === 0 && lastVmStateData.globals.size === 0)) {
+        vmStateContentEl.innerHTML += `<p class="text-gray-400">Run code to see the final VM state here.</p>`;
+        return;
+      }
+
+      vmStateContentEl.innerHTML += `
+        <div class="vm-state-subheader">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L4 7M4 7V4M4 7L4 10M20 7V4M20 7L20 10M4 17L20 17M20 17V20M20 17L20 14M4 17V20M4 17L4 14M12 4V20"></path></svg>
+            Final Stack (${lastVmStateData.stack.length ? '' : 'should be empty'})
+        </div>
+        <div>${formatVmObjectToHtml(lastVmStateData.stack, 0)}</div>
+      `;
+
+      vmStateContentEl.innerHTML += `
+        <div class="vm-state-subheader">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+            Globals (${lastVmStateData.globals.size})
+        </div>
+        <div>${formatVmObjectToHtml(lastVmStateData.globals, 0)}</div>
+      `;
+
+      vmStateContentEl.scrollTop = 0;
+    }
+
+    // --- Main Run Logic ---
+    async function runCode() {
+      runBtn.setAttribute('disabled', 'true');
+      runBtn.innerHTML = '<span class="spinner"></span> <span>Running...</span>';
+      resetBtn.setAttribute('disabled', 'true');
+
+      clearTerminal();
+      clearDisassembly();
+      clearVmState();
+
+      const sourceCode = editor.getValue();
+
+      const compiler = new HikariCompiler.Compiler();
+      const vm = new HikariVM.VM();
+
+      termLog("🔧 Compiling source...", 'system');
+      let program;
+      try {
+        program = compiler.compile(sourceCode);
+      } catch (e) {
+        console.error("Compilation Error:", e.message);
+        runBtn.removeAttribute('disabled');
+        runBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197 2.132A1 1 0 0110 13.82V4.18c0-.814.945-1.294 1.625-.85L14.752 5.832a1 1 0 010 1.704l-3.197 2.132a1 1 0 01-1.625-.85V10c0-.552.448-1 1-1h.001z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Run Code</span>';
+        resetBtn.removeAttribute('disabled');
+        return;
+      }
+
+      if (program && program.mainFunction) {
+        disassembleToPanel(program.mainFunction);
+
+        termLog("🚀 Executing on VM...", 'system');
+        try {
+          const { result, value } = await vm.interpret(program);
+          termLog(`Execution finished with result: ${result}`, 'success');
+          termLog(`Final value: ${JSON.stringify(value, null, 2)}`, 'value');
+
+          lastVmStateData.stack = vm.stack || [];
+          lastVmStateData.globals = vm.globals || new Map();
+          displayVmState();
+
+        } catch (err) {
+          console.error("Runtime Error:", err.message);
+        }
+      } else {
+        console.error("Compilation failed or no main function found in program!");
+      }
+
+      runBtn.removeAttribute('disabled');
+      runBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197 2.132A1 1 0 0110 13.82V4.18c0-.814.945-1.294 1.625-.85L14.752 5.832a1 1 0 010 1.704l-3.197 2.132a1 1 0 01-1.625-.85V10c0-.552.448-1 1-1h.001z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Run Code</span>';
+      resetBtn.removeAttribute('disabled');
+    }
+
+    // --- Clear Functions ---
+    function clearTerminal() {
+      termEl.innerHTML = "";
+    }
+
+    function clearDisassembly() {
+      dissContentEl.innerHTML = "";
+    }
+
+    function clearVmState() {
+      lastVmStateData = { stack: [], globals: new Map() };
+      vmStateContentEl.innerHTML = `
+        <div class="vm-state-header">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+            Final VM State
+        </div>
+        <p class="text-gray-400">Run code to see the final VM state here.</p>
+      `;
+    }
+
+    function clearInspectPanel() {
+        clearDisassembly();
+        clearVmState();
+    }
+
+    // --- UI State Management for Tabs ---
+    let currentInspectView = 'disassembly';
+
+    function showInspectView(view) {
+        currentInspectView = view;
+        if (view === 'disassembly') {
+            dissContentEl.classList.remove('hidden');
+            vmStateContentEl.classList.add('hidden');
+            showDisassemblyBtn.classList.add('bg-indigo-600', 'text-white');
+            showDisassemblyBtn.classList.remove('bg-gray-600', 'hover:bg-gray-500');
+            showVmStateBtn.classList.remove('bg-indigo-600', 'text-white');
+            showVmStateBtn.classList.add('bg-gray-600', 'hover:bg-gray-500');
+            clearInspectBtn.onclick = clearDisassembly;
+        } else { // 'vm-state'
+            vmStateContentEl.classList.remove('hidden');
+            dissContentEl.classList.add('hidden');
+            showVmStateBtn.classList.add('bg-indigo-600', 'text-white');
+            showVmStateBtn.classList.remove('bg-gray-600', 'hover:bg-gray-500');
+            showDisassemblyBtn.classList.remove('bg-indigo-600', 'text-white');
+            showDisassemblyBtn.classList.add('bg-gray-600', 'hover:bg-gray-500');
+            clearInspectBtn.onclick = clearVmState;
+            displayVmState();
+        }
+    }
+
+    function resetUI() {
+      clearTerminal();
+      clearInspectPanel();
+      editor.setValue(`// Welcome to Hikari! ✨
+// Write your JavaScript-like code here and see it run.
+
+console.log("Fetching a random joke...");
+
+// Correct two-step process
+const response = await fetch('https://official-joke-api.appspot.com/random_joke');
+const data = await response.json();
+
+console.log(data.setup);
+console.log(data.punchline);
+
+return data.punchline;
+`);
+      termLog("Playground reset. Ready to run!", 'system');
+      showInspectView('disassembly');
+    }
+
+    // --- Event Listeners ---
+    runBtn.addEventListener("click", runCode);
+    resetBtn.addEventListener("click", resetUI);
+    clearTerminalBtn.addEventListener("click", clearTerminal);
+    clearInspectBtn.addEventListener("click", () => {
+        if (currentInspectView === 'disassembly') {
+            clearDisassembly();
+        } else {
+            clearVmState();
+        }
+    });
+
+    showDisassemblyBtn.addEventListener("click", () => showInspectView('disassembly'));
+    showVmStateBtn.addEventListener("click", () => showInspectView('vm-state'));
+
+    // Initial state: Log ready message and set default inspect view
+    termLog("Welcome to Hikari VM Playground! Editor loading...", 'system');
+    showInspectView('disassembly');
+  </script>
+</body>
+</html>

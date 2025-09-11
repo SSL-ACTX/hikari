@@ -40,7 +40,8 @@ export function disassembleFunction(func) {
   _disassembleChunk(func, func.name || '<script>');
 
   for (const constant of func.constants) {
-    if (constant instanceof FunctionObject) {
+    // Check if the object has the properties of a FunctionObject
+    if (constant && typeof constant === 'object' && constant.hasOwnProperty('bytecode')) {
       disassembleFunction(constant);
     }
   }
