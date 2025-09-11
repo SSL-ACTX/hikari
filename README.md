@@ -1,6 +1,11 @@
 <div align="center">
     <img src="https://i.ibb.co/9HvgFXdR/hikari.png" alt="Hikari Logo" style="width: 150px;">
     <h1 style="margin-top: 10px;">Hikari (ヒカリ)</h1>
+    <p>
+        <a href="https://ssl-actx.github.io/hikari/playground/" target="_blank">
+            <img src="https://img.shields.io/badge/Interactive%20Playground-✨%20Try%20Now-blue" alt="Interactive Playground">
+        </a>
+    </p>
 </div>
 <p align="center">
     <img src="https://img.shields.io/badge/language-Hikari-blue.svg" alt="Language">
@@ -16,6 +21,7 @@
 **Hikari is a modern, dynamically-typed programming language built from the ground up.** It features a custom bytecode compiler and a virtual machine, designed to be instantly familiar to millions of developers by adopting the popular and expressive syntax of JavaScript.
 
 The project is a deep dive into the mechanics of language implementation. It features a complete execution pipeline from source code to final value, including closures, classes, a prototype-based object model, and a full non-blocking, resumable execution model with generators and `async/await`.
+
 
 ## ✨ Core Features
 
