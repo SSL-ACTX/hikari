@@ -10,7 +10,7 @@ import { PromiseV1, AsyncCallTask } from './PromiseV1.js';
 
 /** Returns true if the value is falsy according to the language semantics. */
 function isFalsy(value) {
-    return value === null || value === undefined || value === false || value === 0 || value === "" || (Array.isArray(value) && value.length === 0);
+    return value === null || value === false || value === 0 || value === "" || (Array.isArray(value) && value.length === 0);
 }
 
 /**
@@ -505,8 +505,8 @@ export const InstructionHandlers = {
         const methodName = vm.currentFrame.func.constants[methodNameIndex];
         const receiver = vm.peek(argCount);
 
-        if (receiver === null || receiver === undefined) {
-            vm.runtimeError(`Cannot read properties of null or undefined (calling method '${methodName}').`);
+        if (receiver === null) {
+            vm.runtimeError(`Cannot read properties of null (calling method '${methodName}').`);
             return InterpretResult.RUNTIME_ERROR;
         }
         const args = vm.stack.slice(vm.stack.length - argCount);
@@ -625,8 +625,8 @@ export const InstructionHandlers = {
         const nameIndex = vm.currentFrame.readByte();
         const propName = vm.currentFrame.func.constants[nameIndex];
         const object = vm.pop();
-        if (object === null || object === undefined) {
-            vm.runtimeError(`Cannot read property '${propName}' of null or undefined.`);
+        if (object === null) {
+            vm.runtimeError(`Cannot read property '${propName}' of null.`);
             return InterpretResult.RUNTIME_ERROR;
         }
         if (object instanceof NativeObject) {
@@ -645,7 +645,7 @@ export const InstructionHandlers = {
             }
             currentObject = currentObject.prototype;
         }
-        vm.push(undefined);
+        vm.push(null);
         return InterpretResult.OK; // Property not found.
     },
     // Sets a property on an object.

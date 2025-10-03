@@ -94,11 +94,11 @@ export class GeneratorObject {
     this.vm = vm;
     this.coroutine = new Coroutine(closure);
     this.done = false;
-    this.value = undefined;
+    this.value = null;
   }
 
   next(value) {
-    if (this.done) return { value: undefined, done: true };
+    if (this.done) return { value: null, done: true };
 
     const result = this.vm.resume(this.coroutine, value);
 
@@ -107,14 +107,14 @@ export class GeneratorObject {
       return { value: this.value, done: false };
     } else {
       this.done = true;
-      const finalValue = this.vm.pop() ?? undefined;
+      const finalValue = this.vm.pop() ?? null;
       return { value: finalValue, done: true };
     }
   }
 
   return(value) {
     this.done = true;
-    return { value: value ?? undefined, done: true };
+    return { value: value ?? null, done: true };
   }
 
   throw(error) {
