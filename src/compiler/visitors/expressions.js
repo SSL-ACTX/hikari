@@ -13,18 +13,21 @@ export const ExpressionVisitors = {
         }
     },
     YieldExpression: {
-        exit(path) {
+        enter(path) { // Changed from exit to enter
             const { node } = path;
 
             if (node.argument) {
-                // Evaluate the value to yield (already pushes it on the stack).
+                // Manually visit the argument expression.
                 path.get("argument").visit();
             } else {
-                // Plain `yield;` yields `undefined` (we’ll push null here for now).
+                // Plain `yield;` yields null.
                 this.current.emitByte(Opcodes.OP_PUSH_NULL);
             }
             // Emit the actual yield instruction.
             this.current.emitByte(Opcodes.OP_YIELD);
+
+            // Prevent Babel's default traversal from visiting the argument again.
+            path.skip();
         }
     },
     NewExpression: {
