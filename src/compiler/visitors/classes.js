@@ -65,7 +65,9 @@ export const ClassVisitors = {
                 // Create a default empty constructor if none is provided.
                 const bytecode = [Opcodes.OP_GET_LOCAL, 0, Opcodes.OP_RETURN]; // constructor() { return this; }
                 const emptyConstructor = new FunctionObject(className, 0, bytecode, []);
-                this.current.emitConstant(emptyConstructor);
+                // Add the function object to constants and then emit OP_CLOSURE to create a callable.
+                const constIndex = this.current.addConstant(emptyConstructor);
+                this.current.emitBytes(Opcodes.OP_CLOSURE, constIndex);
             }
 
             // 2. Define the class variable, which stores the constructor function.
