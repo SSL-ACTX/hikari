@@ -18,7 +18,26 @@ async function runTest(filePath) {
       return false;
     }
 
+    // Intercept console.error temporarily (for runtime messages)
+    let runtimeError = null;
+    const originalError = console.error;
+    console.error = (...args) => {
+      runtimeError = args.join(' ');
+      originalError(...args);
+    };
+
     await vm.interpret(program);
+
+    // Restore console.error
+    console.error = originalError;
+
+    // If runtime error occurred, mark as failed
+    if (runtimeError) {
+      console.log(chalk.red(`FAILED: ${path.basename(filePath)}`));
+      console.log(chalk.gray(`  Runtime Error: ${runtimeError}`));
+      return false;
+    }
+
     console.log(chalk.green(`PASSED: ${path.basename(filePath)}`));
     return true;
   } catch (error) {
@@ -37,11 +56,8 @@ async function main() {
 
   for (const file of testFiles) {
     const success = await runTest(path.join(testsDir, file));
-    if (success) {
-      passed++;
-    } else {
-      failed++;
-    }
+    if (success) passed++;
+    else failed++;
   }
 
   console.log(chalk.bold.yellow('\n--- Test Summary ---'));
@@ -49,9 +65,7 @@ async function main() {
   console.log(chalk.red(`Failed: ${failed}`));
   console.log(chalk.bold.yellow('--------------------'));
 
-  if (failed > 0) {
-    process.exit(1);
-  }
+  if (failed > 0) process.exit(1);
 }
 
 main();
