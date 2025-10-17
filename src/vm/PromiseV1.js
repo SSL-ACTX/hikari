@@ -39,15 +39,19 @@ export class PromiseV1 {
     const resolve = (value) => this.vm.scheduleMicrotask(() => this._resolveInternal(value));
     const reject = (reason) => this.vm.scheduleMicrotask(() => this._rejectInternal(reason));
 
-    this.vm.scheduleMicrotask(() => {
-      if (executor instanceof Closure) {
-        const taskArgs = [new NativeObject('resolve', resolve), new NativeObject('reject', reject)];
-        this.vm.scheduleMicrotask(new AsyncCallTask(executor, null, taskArgs));
-      } else {
-        try { executor(resolve, reject); }
-        catch (e) { this._rejectInternal(e.message); }
-      }
-    });
+    try {
+        if (executor instanceof Closure) {
+            const taskArgs = [new NativeObject('resolve', resolve), new NativeObject('reject', reject)];
+            // Schedule the VM function to run with the native resolve/reject callbacks
+            this.vm.scheduleMicrotask(new AsyncCallTask(executor, null, taskArgs));
+        } else {
+            // Immediately execute the native JS function executor
+            executor(resolve, reject);
+        }
+    } catch (e) {
+        // If executor throws an error synchronously, reject the promise
+        this._rejectInternal(e.message);
+    }
   }
 
   _resolveInternal(value) {

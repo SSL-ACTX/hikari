@@ -1,5 +1,5 @@
 async function delayedHello() {
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise(resolve => setTimeout(resolve, 1000));
   console.log("Hello after delay");
 }
 

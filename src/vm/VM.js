@@ -65,16 +65,23 @@ export class VM {
       this.globals.set('fetch', new NativeObject('fetch', fetchWrapper));
 
       const setIntervalWrapper = (callback, delay) => {
-          if (!(callback instanceof Closure)) {
-              this.runtimeError("setInterval expects a VM function as the first argument.");
+          this.pendingHostOps++;
+          let intervalId;
+
+          if (callback instanceof Closure) {
+              const task = new AsyncCallTask(callback, null, []);
+              intervalId = globalThis.setInterval(() => {
+                  this.scheduleMicrotask(task);
+              }, delay);
+          } else if (typeof callback === 'function') {
+              intervalId = globalThis.setInterval(callback, delay);
+          } else if (callback instanceof NativeObject && typeof callback.object === 'function') {
+              intervalId = globalThis.setInterval(callback.object, delay);
+          } else {
+              this.pendingHostOps--; // Decrement since we're erroring out
+              this.runtimeError("setInterval expects a function as the first argument.");
               return;
           }
-
-          this.pendingHostOps++;
-          const task = new AsyncCallTask(callback, null, []);
-          const intervalId = globalThis.setInterval(() => {
-              this.scheduleMicrotask(task);
-          }, delay);
 
           return {
               _id: intervalId,
@@ -95,17 +102,31 @@ export class VM {
       this.globals.set('clearInterval', new NativeObject('clearInterval', clearIntervalWrapper));
 
       const setTimeoutWrapper = (callback, delay) => {
-          if (!(callback instanceof Closure)) {
-              this.runtimeError("setTimeout expects a VM function as the first argument.");
+          this.pendingHostOps++;
+          let timeoutId;
+
+          const fireCallback = () => {
+              if (callback instanceof Closure) {
+                  const task = new AsyncCallTask(callback, null, []);
+                  this.scheduleMicrotask(task);
+              } else if (typeof callback === 'function') {
+                  callback(); // It's a native function, just call it.
+              } else if (callback instanceof NativeObject && typeof callback.object === 'function') {
+                 callback.object(); // It's a wrapped native function
+              } else {
+                  // This path should ideally not be hit if the initial check passes
+                  this.runtimeError("setTimeout callback is not a callable function.");
+              }
+              this.pendingHostOps--;
+          };
+
+          if (!(callback instanceof Closure) && typeof callback !== 'function' && !(callback instanceof NativeObject && typeof callback.object === 'function')) {
+              this.pendingHostOps--; // Decrement since we're erroring out.
+              this.runtimeError("setTimeout expects a function as the first argument.");
               return;
           }
 
-          this.pendingHostOps++;
-          const task = new AsyncCallTask(callback, null, []);
-          const timeoutId = globalThis.setTimeout(() => {
-              this.scheduleMicrotask(task);
-              this.pendingHostOps--;
-          }, delay);
+          timeoutId = globalThis.setTimeout(fireCallback, delay);
 
           return {
               _id: timeoutId,
