@@ -839,15 +839,18 @@ export const InstructionHandlers = {
             },
             (rejectionReason) => {
                 vm.scheduleMicrotask(() => {
+                    // When a promise rejects, we treat it like a `throw`.
+                    // We push the error onto the stack and then let the VM's
+                    // error handling mechanism find the nearest catch block.
                     vm.callFrames.push(frameToResume);
                     vm.currentFrame = frameToResume;
-                    vm.runtimeError(rejectionReason);
-                    vm.callFrames.pop();
-                    vm.currentFrame = vm.callFrames.length > 0 ? vm.callFrames[vm.callFrames.length - 1] : null;
+                    vm.pop();
+                    vm.push(rejectionReason);
+                    vm.runtimeError(String(rejectionReason), false);
                 });
             }
         );
-        return InterpretResult.YIELD; // Signal VM to suspend.
+        return InterpretResult.YIELD;
     },
     // Yields control in a generator function.
     [Opcodes.OP_YIELD]: (vm) => {
