@@ -17,6 +17,11 @@
     <img src="https://img.shields.io/github/forks/SSL-ACTX/hikari?style=social" alt="GitHub forks">
 </p>
 
+> [!IMPORTANT]
+> **Project Status: Dropped / Archived**
+>
+> This project is no longer under active development. Hikari was created primarily as a **research vehicle** to explore the intricate mechanics of virtual machines, bytecode compilers, and asynchronous execution models. By implementing these low-level concepts within a high-level language like JavaScript, the project served as a deep dive into language design and runtime architecture without the overhead of manual memory management or platform-specific assembly.
+
 
 **Hikari is a modern, dynamically-typed programming language built from the ground up.** It features a custom bytecode compiler and a virtual machine, designed to be instantly familiar to millions of developers by adopting the popular and expressive syntax of JavaScript.
 
